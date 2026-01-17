@@ -25,7 +25,7 @@
 
 <script>
     // ==========================================
-    // 1. 实验室数据库 (已包含您的真实数据)
+    // 1. 实验室数据库
     // ==========================================
     const LAB_DATABASE = [
         { id: "lab_1", name: "基础楼1001", officer: "王昇" },
@@ -36,20 +36,11 @@
     ];
 
     // ==========================================
-    // 2. ⚠️ 表单跳转配置 (请修改这里！)
+    // 2. 表单配置 (已移除复杂的 Keys 配置)
     // ==========================================
     const FORM_CONFIG = {
-        // [A] 您的多维表格收集链接 (不带参数的基础链接)
-        // 示例: "https://doc.weixin.qq.com/form/collect/DjkA..."
-        url: "https://doc.weixin.qq.com/smartsheet/form/1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3", 
-
-        // [B] 表格中各字段对应的“参数名/ID”
-        // 您需要去企业微信/腾讯文档的“预填充”设置里查找这些 key
-        keys: {
-            id:      "field_xxx",  // 对应表格里的 [实验室ID] 列
-            name:    "field_yyy",  // 对应表格里的 [实验室名称] 列
-            officer: "field_zzz"   // 对应表格里的 [安全员] 列
-        }
+        // 请确保这里是您的收集表链接
+        url: "https://doc.weixin.qq.com/smartsheet/form/1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3"
     };
 
     // ==========================================
@@ -88,17 +79,23 @@
         scanBtn.style.display = "none";
         jumpMsg.style.display = "block";
 
-        // --- 构建跳转 URL ---
-        // 自动将中文进行编码，防止乱码
-        const finalUrl = `${FORM_CONFIG.url}?${FORM_CONFIG.keys.id}=${encodeURIComponent(labData.id)}&${FORM_CONFIG.keys.name}=${encodeURIComponent(labData.name)}&${FORM_CONFIG.keys.officer}=${encodeURIComponent(labData.officer)}`;
+        // ============================================
+        // 修改点：直接使用清洗后的基础链接，不拼接参数
+        // ============================================
+        try {
+            // 1. 清理链接中的隐形字符和空格 (解决文件不存在问题)
+            let cleanBaseUrl = FORM_CONFIG.url.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim();
 
-        // 调试打印 (测试时可看控制台)
-        console.log("即将跳转到:", finalUrl);
+            console.log("即将跳转至纯表单:", cleanBaseUrl);
 
-        // 延迟 1 秒后跳转，让用户看清验证通过的提示
-        setTimeout(() => {
-            window.location.href = finalUrl;
-        }, 1000);
+            // 2. 延迟跳转
+            setTimeout(() => {
+                window.location.href = cleanBaseUrl;
+            }, 1000);
+
+        } catch (e) {
+            updateStatus("链接配置有误", "status-error");
+        }
     }
 
     scanBtn.addEventListener("click", async () => {
@@ -110,7 +107,6 @@
                 const decoder = new TextDecoder();
                 for (const record of event.message.records) {
                     const text = decoder.decode(record.data);
-                    // 解析 lab_id
                     if (text.includes("lab_id=")) {
                         verifyAndJump(text.split("lab_id=")[1].split("&")[0]);
                         return;
@@ -132,6 +128,3 @@
 </script>
 </body>
 </html>
-
-
-
