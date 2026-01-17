@@ -3,110 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>实验室安全检查 - 身份验证</title>
+    <title>实验室安全检查跳转</title>
     <style>
-        /* ================= 样式区域 ================= */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            text-align: center;
-            padding: 20px;
-            background-color: #f2f4f7;
-            color: #333;
-        }
-        
-        .container {
-            background: white;
-            padding: 30px 25px;
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            max-width: 400px;
-            margin: 0 auto;
-        }
-
-        h2 { margin-bottom: 5px; color: #1a73e8; letter-spacing: 1px; }
-        .subtitle { font-size: 0.9em; color: #666; margin-bottom: 20px; }
-
-        .badge {
-            display: inline-block;
-            padding: 5px 15px;
-            background: #e8f0fe;
-            color: #1a73e8;
-            border-radius: 50px;
-            font-size: 0.85em;
-            margin-bottom: 25px;
-            font-weight: 600;
-        }
-
-        /* 实验室信息卡片 */
-        .info-card {
-            background: #f8f9fa;
-            border-left: 5px solid #1a73e8;
-            padding: 20px;
-            text-align: left;
-            margin-bottom: 25px;
-            border-radius: 8px;
-            display: none; /* 默认隐藏 */
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-        .info-card p { margin: 10px 0; font-size: 1.1rem; line-height: 1.5; }
-        .label { color: #5f6368; font-size: 0.9em; display: inline-block; width: 70px; }
-
-        /* 状态提示框 */
-        .status-box {
-            padding: 15px;
-            border-radius: 10px;
-            background-color: #e9ecef;
-            min-height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: #555;
-            margin-bottom: 20px;
-        }
-
-        /* 按钮样式 */
-        .btn {
-            background-color: #1a73e8;
-            color: white;
-            border: none;
-            padding: 15px 20px;
-            font-size: 16px;
-            border-radius: 10px;
-            cursor: pointer;
-            width: 100%;
-            font-weight: 600;
-            display: none; /* 默认隐藏 */
-            transition: background 0.2s;
-        }
-        .btn:active { background-color: #1669bb; transform: scale(0.98); }
-        
-        /* 状态颜色 */
-        .status-success { background-color: #e6f4ea; color: #137333; border: 1px solid #ceead6; }
-        .status-error { background-color: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; }
+        body { font-family: -apple-system, sans-serif; text-align: center; padding: 20px; background-color: #f2f4f7; }
+        .container { background: white; padding: 30px 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 0 auto; }
+        .status-box { padding: 15px; border-radius: 10px; background-color: #e9ecef; margin-top: 20px; font-weight: bold; color: #555; }
+        .status-success { background-color: #e6f4ea; color: #137333; }
+        .status-error { background-color: #fce8e6; color: #c5221f; }
+        .btn { background-color: #1a73e8; color: white; border: none; padding: 15px; border-radius: 10px; width: 100%; margin-top: 20px; font-size: 16px; display: none; }
+        .loading { color: #1a73e8; margin-top: 10px; font-size: 0.9em; display:none;}
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>🛡️ 安全巡检验证</h2>
-    <div class="subtitle">实验室安全管理系统</div>
-    
-    <div id="modeBadge" class="badge">检测环境...</div>
-
-    <div id="labInfoCard" class="info-card">
-        <p><span class="label">📍 地点</span> <strong><span id="labName">--</span></strong></p>
-        <p><span class="label">👤 安全员</span> <strong><span id="labOfficer">--</span></strong></p>
-    </div>
-
     <div id="status" class="status-box">准备就绪</div>
-
-    <button id="androidScanBtn" class="btn">📡 开启 NFC 扫描</button>
+    <div id="jumpMsg" class="loading">正在跳转至检查表单...</div>
+    <button id="scanBtn" class="btn">📡 开启 NFC 扫描</button>
 </div>
 
 <script>
     // ==========================================
-    // 1. 实验室数据库 (已填入 Excel 文件中的真实数据)
+    // 1. 实验室数据库 (已包含您的真实数据)
     // ==========================================
     const LAB_DATABASE = [
         { id: "lab_1", name: "基础楼1001", officer: "王昇" },
@@ -117,94 +36,92 @@
     ];
 
     // ==========================================
-    // 2. 页面逻辑
+    // 2. ⚠️ 表单跳转配置 (请修改这里！)
+    // ==========================================
+    const FORM_CONFIG = {
+        // [A] 您的多维表格收集链接 (不带参数的基础链接)
+        // 示例: "https://doc.weixin.qq.com/form/collect/DjkA..."
+        url: "https://doc.weixin.qq.com/smartsheet/s3_AIoAcQYTAOQCNWW7s1o53TgiKZEF8?scode=AJEAXgcSAA460MvpEuAIoAcQYTAOQ&tab=XQrQgc&viewId=vxt5DO", 
+
+        // [B] 表格中各字段对应的“参数名/ID”
+        // 您需要去企业微信/腾讯文档的“预填充”设置里查找这些 key
+        keys: {
+            id:      "field_xxx",  // 对应表格里的 [实验室ID] 列
+            name:    "field_yyy",  // 对应表格里的 [实验室名称] 列
+            officer: "field_zzz"   // 对应表格里的 [安全员] 列
+        }
+    };
+
+    // ==========================================
+    // 3. 核心逻辑
     // ==========================================
     const statusDiv = document.getElementById('status');
-    const labInfoCard = document.getElementById('labInfoCard');
-    const scanBtn = document.getElementById('androidScanBtn');
-    const modeBadge = document.getElementById('modeBadge');
+    const jumpMsg = document.getElementById('jumpMsg');
+    const scanBtn = document.getElementById('scanBtn');
 
     window.onload = function() {
-        // 尝试从 URL 参数中获取 ID (iOS/通用模式)
         const urlParams = new URLSearchParams(window.location.search);
         const urlLabId = urlParams.get('lab_id');
 
         if (urlLabId) {
-            // 模式 A: 自动识别
-            modeBadge.innerText = "自动验证模式";
-            verifyLab(urlLabId);
+            verifyAndJump(urlLabId);
         } else {
-            // 模式 B: 手动扫描
-            modeBadge.innerText = "手动扫描模式";
-            
-            // 只有支持 Web NFC 的浏览器 (Android Chrome) 才显示按钮
             if ("NDEFReader" in window) {
-                updateStatus("请点击下方按钮扫描 NFC 标签");
+                updateStatus("请点击下方按钮扫描");
                 scanBtn.style.display = "block";
             } else {
-                updateStatus("⚠️ 未检测到标签参数。<br>请直接用手机贴近墙上的 NFC 标签。", "status-error");
+                updateStatus("⚠️ 未检测到NFC参数，请贴近标签。", "status-error");
             }
         }
     };
 
-    // 验证核心逻辑
-    function verifyLab(id) {
-        // 在数据库中查找
+    function verifyAndJump(id) {
         const labData = LAB_DATABASE.find(item => item.id === id);
 
         if (!labData) {
-            updateStatus(`❌ 验证失败：无效的实验室 ID (${id})`, "status-error");
+            updateStatus(`❌ 无效的实验室 ID (${id})`, "status-error");
             return;
         }
 
-        // --- 验证通过 ---
-        
-        // 填充信息
-        document.getElementById('labName').innerText = labData.name;
-        document.getElementById('labOfficer').innerText = labData.officer;
-        
-        // 显示界面元素
-        labInfoCard.style.display = "block";
-        scanBtn.style.display = "none"; // 隐藏按钮
+        // 验证通过
+        updateStatus(`✅ 验证通过：${labData.name}`, "status-success");
+        scanBtn.style.display = "none";
+        jumpMsg.style.display = "block";
 
-        // 更新状态
-        updateStatus("✅ 验证通过！<br>请开始进行安全检查", "status-success");
-        
-        // (可选) 2秒后自动跳转到检查表单
-        // setTimeout(() => { window.location.href = "check_list.html?lab=" + id; }, 2000);
+        // --- 构建跳转 URL ---
+        // 自动将中文进行编码，防止乱码
+        const finalUrl = `${FORM_CONFIG.url}?${FORM_CONFIG.keys.id}=${encodeURIComponent(labData.id)}&${FORM_CONFIG.keys.name}=${encodeURIComponent(labData.name)}&${FORM_CONFIG.keys.officer}=${encodeURIComponent(labData.officer)}`;
+
+        // 调试打印 (测试时可看控制台)
+        console.log("即将跳转到:", finalUrl);
+
+        // 延迟 1 秒后跳转，让用户看清验证通过的提示
+        setTimeout(() => {
+            window.location.href = finalUrl;
+        }, 1000);
     }
 
-    // Android 手动扫描按钮逻辑
     scanBtn.addEventListener("click", async () => {
         try {
             const ndef = new NDEFReader();
             await ndef.scan();
-            updateStatus("请将手机贴近 NFC 标签...");
-
+            updateStatus("请贴近 NFC 标签...");
             ndef.onreading = event => {
                 const decoder = new TextDecoder();
-                let scannedId = null;
-
                 for (const record of event.message.records) {
                     const text = decoder.decode(record.data);
-                    
-                    // 1. 尝试解析 URL 里的 lab_id
+                    // 解析 lab_id
                     if (text.includes("lab_id=")) {
-                        scannedId = text.split("lab_id=")[1].split("&")[0];
-                        break;
-                    } 
-                    // 2. 尝试解析纯文本 ID
-                    else if (record.recordType === "text" && !text.includes("http")) {
-                        scannedId = text;
-                        break;
+                        verifyAndJump(text.split("lab_id=")[1].split("&")[0]);
+                        return;
+                    } else if (record.recordType === "text" && !text.includes("http")) {
+                         verifyAndJump(text);
+                         return;
                     }
                 }
-
-                if (scannedId) verifyLab(scannedId);
-                else updateStatus("无法识别标签数据，请重试", "status-error");
             };
         } catch (error) {
-            updateStatus("扫描启动失败: " + error.message, "status-error");
+            updateStatus("扫描启动失败", "status-error");
         }
     });
 
@@ -213,6 +130,5 @@
         statusDiv.className = "status-box " + className;
     }
 </script>
-
 </body>
 </html>
