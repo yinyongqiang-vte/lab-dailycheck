@@ -3,32 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>安全巡检跳转</title>
+    <title>实验室安全检查</title>
     <style>
-        body { font-family: -apple-system, sans-serif; text-align: center; padding: 20px; background-color: #f2f4f7; }
+        body { font-family: -apple-system, Helvetica, sans-serif; text-align: center; padding: 20px; background-color: #f2f4f7; }
         .container { background: white; padding: 30px 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 0 auto; }
-        .status-box { padding: 15px; border-radius: 10px; background-color: #e9ecef; margin-top: 20px; font-weight: bold; color: #555; word-break: break-all; font-size: 14px;}
-        .status-success { background-color: #e6f4ea; color: #137333; }
-        .status-error { background-color: #fce8e6; color: #c5221f; }
         
-        /* 按钮样式 */
-        .btn { background-color: #1a73e8; color: white; border: none; padding: 15px; border-radius: 10px; width: 100%; margin-top: 20px; font-size: 16px; cursor: pointer; }
-        .btn-manual { background-color: #008000; display: none; margin-top: 15px; } /* 绿色手动按钮，默认隐藏 */
+        /* 状态框样式 */
+        .status-box { padding: 15px; border-radius: 10px; background-color: #e9ecef; margin-top: 20px; font-weight: bold; color: #555; word-break: break-all; }
+        .status-success { background-color: #e6f4ea; color: #137333; border: 1px solid #ceead6; }
+        .status-error { background-color: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; }
         
-        .loading { color: #1a73e8; margin-top: 10px; font-size: 0.9em; display:none;}
+        /* 按钮通用样式 */
+        .btn { border: none; padding: 16px; border-radius: 12px; width: 100%; margin-top: 25px; font-size: 17px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+        .btn:active { opacity: 0.8; }
+        
+        /* 蓝色扫描按钮 */
+        .btn-scan { background-color: #1a73e8; color: white; }
+        
+        /* 绿色跳转按钮 */
+        .btn-go { background-color: #059669; color: white; display: none; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); }
+        
+        /* 链接去除下划线 */
+        a { text-decoration: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>🛡️ 安全巡检验证</h2>
-    <div id="status" class="status-box">准备就绪</div>
-    <div id="jumpMsg" class="loading">正在打开...</div>
+    
+    <div id="status" class="status-box">👋 请点击下方按钮开始</div>
 
-    <button id="scanBtn" class="btn" style="display:none;">📡 开启 NFC 扫描</button>
+    <button id="scanBtn" class="btn btn-scan">📡 点击开始 NFC 扫描</button>
 
-    <a id="manualLink" href="#" target="_self" style="text-decoration:none;">
-        <button id="manualBtn" class="btn btn-manual">👉 点此直接打开表格</button>
+    <a id="finalLink" href="#" target="_self">
+        <button id="goBtn" class="btn btn-go">✅ 验证通过<br><span style="font-size:0.9em; font-weight:normal">点击填写检查表</span></button>
     </a>
 </div>
 
@@ -37,96 +46,93 @@
     // 1. 实验室数据库
     // ==========================================
     const LAB_DATABASE = [
-        { id: "lab_1", name: "基础楼1001" },
-        { id: "lab_2", name: "基础楼1002" },
-        { id: "lab_3", name: "基础楼1004" },
-        { id: "lab_4", name: "基础楼1005" },
-        { id: "lab_5", name: "基础楼1006" }
+        { id: "lab_1", name: "基础楼1001", officer: "王昇" },
+        { id: "lab_2", name: "基础楼1002", officer: "常永生" },
+        { id: "lab_3", name: "基础楼1004", officer: "常永生" },
+        { id: "lab_4", name: "基础楼1005", officer: "孙凤仙" },
+        { id: "lab_5", name: "基础楼1006", officer: "赵环环" }
     ];
 
     // ==========================================
-    // 2. 核心逻辑
+    // 2. 目标链接配置
+    // ==========================================
+    // 即使这里不小心有空格，下面的代码也会自动清理
+    const RAW_URL = "https://doc.weixin.qq.com/smartsheet/form/1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3";
+
+    // ==========================================
+    // 3. 核心逻辑
     // ==========================================
     const statusDiv = document.getElementById('status');
-    const jumpMsg = document.getElementById('jumpMsg');
     const scanBtn = document.getElementById('scanBtn');
-    const manualBtn = document.getElementById('manualBtn');
-    const manualLink = document.getElementById('manualLink');
-
-    // 目标链接 (硬编码在这里，确保绝对正确)
-    const TARGET_URL = "https://doc.weixin.qq.com/smartsheet/form/1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3";
+    const goBtn = document.getElementById('goBtn');
+    const finalLink = document.getElementById('finalLink');
 
     window.onload = function() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlLabId = urlParams.get('lab_id');
 
+        // 如果 URL 里自带 lab_id (模拟测试用)，直接验证
         if (urlLabId) {
-            handleCheck(urlLabId);
-        } else {
-            if ("NDEFReader" in window) {
-                updateStatus("请点击下方按钮扫描");
-                scanBtn.style.display = "block";
-            } else {
-                updateStatus("⚠️ 未检测到NFC环境 (请确保在https下运行)", "status-error");
-            }
+            verifyAndShowButton(urlLabId);
+        }
+        
+        // 检查浏览器是否支持 NFC
+        if (!("NDEFReader" in window)) {
+            // 注意：在电脑上显示这个错误是正常的，手机上如果在 http 协议下也会显示
+            console.log("NFC not supported or not secure context");
         }
     };
 
-    function handleCheck(id) {
+    function verifyAndShowButton(id) {
         const labData = LAB_DATABASE.find(item => item.id === id);
 
         if (!labData) {
-            updateStatus(`❌ 无效 ID: ${id}`, "status-error");
+            updateStatus(`❌ 无效的实验室 ID: ${id}`, "status-error");
             return;
         }
 
-        // 1. 界面更新
-        updateStatus(`✅ ${labData.name} 验证通过`, "status-success");
-        scanBtn.style.display = "none";
-        jumpMsg.style.display = "block";
-
-        // 2. 准备链接 (去除所有空格，防止污染)
-        const cleanUrl = TARGET_URL.replace(/\s+/g, '');
-
-        // 3. 激活手动按钮 (作为双保险)
-        manualLink.href = cleanUrl;
-        manualBtn.style.display = "block";
-        manualBtn.innerText = `👉 打开: ${labData.name} 表格`;
-
-        // 4. 尝试【模拟点击】跳转 (比 window.location 更稳定)
-        console.log("尝试模拟点击跳转:", cleanUrl);
+        // --- 验证成功逻辑 ---
         
-        setTimeout(() => {
-            // 创建一个临时的 a 标签来点击
-            const link = document.createElement('a');
-            link.href = cleanUrl;
-            link.target = "_self"; // 在当前页打开，防止拦截
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }, 800);
+        // 1. 更新提示文案
+        updateStatus(`✅ 已识别：${labData.name}<br><span style="font-weight:normal; font-size:0.9em; color:#137333">安全员：${labData.officer}</span>`, "status-success");
+        
+        // 2. 隐藏扫描按钮，显示跳转按钮
+        scanBtn.style.display = "none";
+        goBtn.style.display = "block";
+
+        // 3. 构建并清洗链接 (确保无隐形字符)
+        // 这一步是防止“文件不存在”的关键
+        const cleanUrl = RAW_URL.replace(/\s+/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+        
+        // 4. 将清洗后的链接赋给 A 标签
+        finalLink.href = cleanUrl;
+        
+        console.log("链接已就绪:", cleanUrl);
     }
 
+    // NFC 扫描监听
     scanBtn.addEventListener("click", async () => {
         try {
             const ndef = new NDEFReader();
             await ndef.scan();
-            updateStatus("请贴近 NFC 标签...");
+            updateStatus("📲 请将手机贴近 NFC 标签...");
+            
             ndef.onreading = event => {
                 const decoder = new TextDecoder();
                 for (const record of event.message.records) {
                     const text = decoder.decode(record.data);
-                    // 简单的解析逻辑
+                    
+                    // 解析逻辑：支持 "lab_id=xxx" 格式或纯文本格式
                     if (text.includes("lab_id=")) {
-                        handleCheck(text.split("lab_id=")[1].split("&")[0]);
+                        verifyAndShowButton(text.split("lab_id=")[1].split("&")[0]);
                     } else if (record.recordType === "text" && !text.includes("http")) {
-                        handleCheck(text);
+                        verifyAndShowButton(text);
                     }
                 }
             };
         } catch (error) {
             console.error(error);
-            updateStatus("扫描启动失败: " + error, "status-error");
+            updateStatus("❌ 扫描启动失败 (请确保已开启NFC权限)", "status-error");
         }
     });
 
