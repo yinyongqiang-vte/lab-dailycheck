@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>实验室安全检查入口</title>
+    <title>实验室安全检查 - 身份验证</title>
     <style>
+        /* 全局样式设置 */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             text-align: center;
@@ -12,6 +13,7 @@
             background-color: #f0f2f5;
             color: #333;
         }
+        
         .container {
             background: white;
             padding: 25px;
@@ -20,7 +22,10 @@
             max-width: 400px;
             margin: 0 auto;
         }
+
         h2 { margin-bottom: 10px; color: #1a73e8; }
+
+        /* 顶部模式标签 */
         .badge {
             display: inline-block;
             padding: 4px 12px;
@@ -31,6 +36,8 @@
             margin-bottom: 20px;
             font-weight: 600;
         }
+
+        /* 实验室信息卡片 */
         .info-card {
             background: #f8f9fa;
             border-left: 4px solid #1a73e8;
@@ -38,9 +45,11 @@
             text-align: left;
             margin-bottom: 20px;
             border-radius: 4px;
-            display: none; /* 默认隐藏，识别成功后显示 */
+            display: none; /* 默认隐藏，验证通过后显示 */
         }
-        .info-card p { margin: 5px 0; font-size: 0.95em; }
+        .info-card p { margin: 8px 0; font-size: 1rem; }
+
+        /* 状态提示框 */
         .status-box {
             padding: 15px;
             border-radius: 8px;
@@ -53,8 +62,9 @@
             color: #555;
             margin-bottom: 20px;
             flex-direction: column;
-            gap: 5px;
         }
+
+        /* 按钮样式 */
         .btn {
             background-color: #1a73e8;
             color: white;
@@ -65,209 +75,149 @@
             cursor: pointer;
             width: 100%;
             font-weight: 500;
-            transition: background 0.2s;
             display: none; /* 默认隐藏 */
         }
         .btn:active { transform: scale(0.98); }
-        .btn-retry { background-color: #5f6368; margin-top: 10px; }
         
-        /* 状态颜色 */
+        /* 状态颜色定义 */
         .status-success { background-color: #e6f4ea; color: #137333; border: 1px solid #ceead6; }
         .status-error { background-color: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; }
-        .status-loading { background-color: #e8f0fe; color: #1a73e8; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>🛡️ 实验室安全卫士</h2>
-    <div id="modeBadge" class="badge">正在检测运行模式...</div>
+    
+    <div id="modeBadge" class="badge">检测中...</div>
 
     <div id="labInfoCard" class="info-card">
         <p><strong>📍 实验室：</strong> <span id="labName">--</span></p>
         <p><strong>👤 安全员：</strong> <span id="labOfficer">--</span></p>
-        <p><strong>🆔 ID：</strong> <span id="labIdDisplay">--</span></p>
     </div>
 
     <div id="status" class="status-box">准备就绪</div>
 
-    <button id="androidScanBtn" class="btn">📡 开启 NFC 扫描 (Android)</button>
-    <button id="retryLocBtn" class="btn btn-retry">📍 重新获取位置</button>
+    <button id="androidScanBtn" class="btn">📡 开启 NFC 扫描</button>
 </div>
 
 <script>
     // ==========================================
-    // 1. 实验室数据库配置
+    // 1. 数据库配置 (已移除经纬度)
     // ==========================================
     const LAB_DATABASE = [
         {
-            id: "test1", 
-            name: "测试房间", 
-            officer: "测试人1",
-            // ⚠️ 请务必修改以下经纬度为实验室的真实坐标！
-            // 否则无法通过位置验证 (目前填的是示例坐标)
-            lat: 39.079778, 
-            lng: 117.114655 
+            id: "test1",           
+            name: "测试房间",       
+            officer: "测试人1"
+        },
+        // 可在此添加更多实验室...
+        {
+            id: "chem_01",
+            name: "第一化学实验室",
+            officer: "王老师"
         }
     ];
 
-    const MAX_DISTANCE_METERS = 100; // 允许的误差范围 (米)
-
     // ==========================================
-    // 2. 页面逻辑控制
+    // 2. 获取页面元素
     // ==========================================
     const statusDiv = document.getElementById('status');
     const labInfoCard = document.getElementById('labInfoCard');
     const scanBtn = document.getElementById('androidScanBtn');
-    const retryBtn = document.getElementById('retryLocBtn');
     const modeBadge = document.getElementById('modeBadge');
 
-    // 页面加载完毕后，立即判断进入方式
+    // ==========================================
+    // 3. 页面入口逻辑
+    // ==========================================
     window.onload = function() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlLabId = urlParams.get('lab_id');
 
         if (urlLabId) {
-            // [模式 A]：通过 NFC 标签里的 URL 跳转进来 (iOS/Android通用)
+            // [模式 A] 通过 URL 参数进入 (iOS/Android通用)
             modeBadge.innerText = "模式：NFC 自动识别";
-            handleLabIdentification(urlLabId);
+            verifyLab(urlLabId);
         } else {
-            // [模式 B]：用户直接打开网页 (需要手动扫描)
+            // [模式 B] 手动打开网页
             modeBadge.innerText = "模式：手动扫描";
+            
             if ("NDEFReader" in window) {
-                updateStatus("请点击下方按钮扫描 NFC 标签");
-                scanBtn.style.display = "block"; // 显示扫描按钮
+                updateStatus("请点击下方按钮进行扫描");
+                scanBtn.style.display = "block";
             } else {
-                updateStatus("未检测到 NFC 参数，且浏览器不支持 Web NFC。<br>请检查是否通过 NFC 标签跳转。", "status-error");
+                updateStatus("未检测到标签信息，且浏览器不支持扫描。<br>请直接用手机贴近墙上的 NFC 标签。", "status-error");
             }
         }
     };
 
     // ==========================================
-    // 3. 核心功能函数
+    // 4. 验证逻辑 (核心修改：去掉位置校验，直接通过)
     // ==========================================
-
-    // 处理识别到的实验室 ID
-    function handleLabIdentification(id) {
-        // 1. 在数据库中查找
+    function verifyLab(id) {
+        // 查找数据库
         const labData = LAB_DATABASE.find(item => item.id === id);
 
         if (!labData) {
-            updateStatus(`❌ 错误：数据库中找不到 ID 为 "${id}" 的实验室。`, "status-error");
+            updateStatus(`❌ 验证失败：无效的实验室标签`, "status-error");
             return;
         }
 
-        // 2. 显示实验室信息
+        // --- 验证通过 ---
+        
+        // 1. 填充信息 (不显示 ID)
         document.getElementById('labName').innerText = labData.name;
         document.getElementById('labOfficer').innerText = labData.officer;
-        document.getElementById('labIdDisplay').innerText = labData.id;
+        
+        // 2. 显示信息卡片
         labInfoCard.style.display = "block";
-        scanBtn.style.display = "none"; // 隐藏扫描按钮
+        scanBtn.style.display = "none";
 
-        // 3. 开始位置验证
-        verifyLocation(labData);
+        // 3. 更新状态提示
+        updateStatus("✅ 验证通过，请进行实验室安全检查", "status-success");
+
+        // 4. (可选) 可以在这里添加自动跳转逻辑
+        // setTimeout(() => { window.location.href = "check_form.html"; }, 1500);
     }
 
-    // 验证地理位置
-    function verifyLocation(targetLab) {
-        updateStatus("正在获取您的地理位置...", "status-loading");
-        retryBtn.style.display = "none";
-
-        if (!navigator.geolocation) {
-            updateStatus("您的浏览器不支持地理位置服务", "status-error");
-            return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const userLat = position.coords.latitude;
-                const userLng = position.coords.longitude;
-
-                // 计算距离
-                const distance = calculateDistance(userLat, userLng, targetLab.lat, targetLab.lng);
-                
-                console.log(`用户坐标: ${userLat}, ${userLng} | 距离目标: ${distance}米`);
-
-                if (distance <= MAX_DISTANCE_METERS) {
-                    // --- 验证成功 ---
-                    updateStatus(`✅ 验证通过！<br>距离误差 ${Math.round(distance)} 米<br>正在跳转至检查表...`, "status-success");
-                    
-                    // 2秒后跳转 (此处仅为演示)
-                    // setTimeout(() => { window.location.href = "check_form.html?lab=" + targetLab.id; }, 2000);
-                } else {
-                    // --- 验证失败 (距离太远) ---
-                    updateStatus(`❌ 位置验证失败<br>您距离实验室 ${Math.round(distance)} 米<br>(允许误差: ${MAX_DISTANCE_METERS}米)`, "status-error");
-                    retryBtn.style.display = "block"; // 允许重试
-                    
-                    // 绑定重试按钮事件
-                    retryBtn.onclick = () => verifyLocation(targetLab);
-                }
-            },
-            (error) => {
-                let errorMsg = "获取位置失败";
-                switch(error.code) {
-                    case error.PERMISSION_DENIED: errorMsg = "请允许浏览器获取位置权限"; break;
-                    case error.POSITION_UNAVAILABLE: errorMsg = "位置信息不可用"; break;
-                    case error.TIMEOUT: errorMsg = "获取位置超时"; break;
-                }
-                updateStatus(`❌ ${errorMsg}`, "status-error");
-                retryBtn.style.display = "block";
-                retryBtn.onclick = () => verifyLocation(targetLab);
-            },
-            { enableHighAccuracy: true, timeout: 8000 }
-        );
-    }
-
-    // [Android] 手动点击按钮扫描逻辑
+    // ==========================================
+    // 5. Android 手动扫描逻辑
+    // ==========================================
     scanBtn.addEventListener("click", async () => {
         try {
             const ndef = new NDEFReader();
             await ndef.scan();
-            updateStatus("请将手机贴近 NFC 标签...", "status-loading");
+            updateStatus("请将手机贴近 NFC 标签...");
 
             ndef.onreading = event => {
-                // 解析逻辑：尝试从 URL 或 文本记录中提取 ID
                 const decoder = new TextDecoder();
                 let scannedId = null;
 
                 for (const record of event.message.records) {
                     const text = decoder.decode(record.data);
-                    // 1. 如果是 URL 记录 (例如 https://.../index.html?lab_id=test1)
+                    
+                    // 解析 URL 中的 id 或 纯文本 id
                     if (text.includes("lab_id=")) {
-                        scannedId = text.split("lab_id=")[1].split("&")[0]; // 提取参数值
+                        scannedId = text.split("lab_id=")[1].split("&")[0];
                         break;
-                    } 
-                    // 2. 如果是纯文本记录 (兼容旧标签)
-                    else if (record.recordType === "text" && !text.includes("http")) {
+                    } else if (record.recordType === "text" && !text.includes("http")) {
                         scannedId = text;
                         break;
                     }
                 }
 
                 if (scannedId) {
-                    handleLabIdentification(scannedId);
+                    verifyLab(scannedId);
                 } else {
-                    updateStatus("未能识别有效的实验室 ID信息", "status-error");
+                    updateStatus("未能识别有效的标签数据", "status-error");
                 }
             };
         } catch (error) {
-            updateStatus("NFC 启动失败: " + error.message, "status-error");
+            updateStatus("扫描启动失败: " + error.message, "status-error");
         }
     });
 
-    // 辅助函数：Haversine 距离计算 (返回米)
-    function calculateDistance(lat1, lon1, lat2, lon2) {
-        if ((lat1 == lat2) && (lon1 == lon2)) return 0;
-        const R = 6371; // km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180; 
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); 
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-        const d = R * c;
-        return d * 1000;
-    }
-
+    // 辅助函数：更新状态栏
     function updateStatus(html, className = "") {
         statusDiv.innerHTML = html;
         statusDiv.className = "status-box " + className;
@@ -275,6 +225,4 @@
 </script>
 
 </body>
-
 </html>
-
