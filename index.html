@@ -3,14 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>实验室安全检查跳转</title>
+    <title>安全巡检跳转</title>
     <style>
         body { font-family: -apple-system, sans-serif; text-align: center; padding: 20px; background-color: #f2f4f7; }
-        .container { background: white; padding: 30px 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 0 auto; }
-        .status-box { padding: 15px; border-radius: 10px; background-color: #e9ecef; margin-top: 20px; font-weight: bold; color: #555; }
+        .container { background: white; padding: 30px 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 0 auto; }
+        .status-box { padding: 15px; border-radius: 10px; background-color: #e9ecef; margin-top: 20px; font-weight: bold; color: #555; word-break: break-all; font-size: 14px;}
         .status-success { background-color: #e6f4ea; color: #137333; }
         .status-error { background-color: #fce8e6; color: #c5221f; }
-        .btn { background-color: #1a73e8; color: white; border: none; padding: 15px; border-radius: 10px; width: 100%; margin-top: 20px; font-size: 16px; display: none; }
+        
+        /* 按钮样式 */
+        .btn { background-color: #1a73e8; color: white; border: none; padding: 15px; border-radius: 10px; width: 100%; margin-top: 20px; font-size: 16px; cursor: pointer; }
+        .btn-manual { background-color: #008000; display: none; margin-top: 15px; } /* 绿色手动按钮，默认隐藏 */
+        
         .loading { color: #1a73e8; margin-top: 10px; font-size: 0.9em; display:none;}
     </style>
 </head>
@@ -19,8 +23,13 @@
 <div class="container">
     <h2>🛡️ 安全巡检验证</h2>
     <div id="status" class="status-box">准备就绪</div>
-    <div id="jumpMsg" class="loading">正在跳转至检查表单...</div>
-    <button id="scanBtn" class="btn">📡 开启 NFC 扫描</button>
+    <div id="jumpMsg" class="loading">正在打开...</div>
+
+    <button id="scanBtn" class="btn" style="display:none;">📡 开启 NFC 扫描</button>
+
+    <a id="manualLink" href="#" target="_self" style="text-decoration:none;">
+        <button id="manualBtn" class="btn btn-manual">👉 点此直接打开表格</button>
+    </a>
 </div>
 
 <script>
@@ -28,21 +37,23 @@
     // 1. 实验室数据库
     // ==========================================
     const LAB_DATABASE = [
-        { id: "lab_1", name: "基础楼1001", officer: "王昇" },
-        { id: "lab_2", name: "基础楼1002", officer: "常永生" },
-        { id: "lab_3", name: "基础楼1004", officer: "常永生" },
-        { id: "lab_4", name: "基础楼1005", officer: "孙凤仙" },
-        { id: "lab_5", name: "基础楼1006", officer: "赵环环" }
+        { id: "lab_1", name: "基础楼1001" },
+        { id: "lab_2", name: "基础楼1002" },
+        { id: "lab_3", name: "基础楼1004" },
+        { id: "lab_4", name: "基础楼1005" },
+        { id: "lab_5", name: "基础楼1006" }
     ];
 
     // ==========================================
-    // 2. 核心逻辑 (已修复跳转问题)
+    // 2. 核心逻辑
     // ==========================================
     const statusDiv = document.getElementById('status');
     const jumpMsg = document.getElementById('jumpMsg');
     const scanBtn = document.getElementById('scanBtn');
+    const manualBtn = document.getElementById('manualBtn');
+    const manualLink = document.getElementById('manualLink');
 
-    // ⚠️ 您的目标链接 (尽量不要手动修改这里，防止误删字符)
+    // 目标链接 (硬编码在这里，确保绝对正确)
     const TARGET_URL = "https://doc.weixin.qq.com/smartsheet/form/1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3";
 
     window.onload = function() {
@@ -50,49 +61,50 @@
         const urlLabId = urlParams.get('lab_id');
 
         if (urlLabId) {
-            verifyAndJump(urlLabId);
+            handleCheck(urlLabId);
         } else {
             if ("NDEFReader" in window) {
                 updateStatus("请点击下方按钮扫描");
                 scanBtn.style.display = "block";
             } else {
-                updateStatus("⚠️ 未检测到NFC参数，请贴近标签。", "status-error");
+                updateStatus("⚠️ 未检测到NFC环境 (请确保在https下运行)", "status-error");
             }
         }
     };
 
-    function verifyAndJump(id) {
+    function handleCheck(id) {
         const labData = LAB_DATABASE.find(item => item.id === id);
 
         if (!labData) {
-            updateStatus(`❌ 无效的实验室 ID (${id})`, "status-error");
+            updateStatus(`❌ 无效 ID: ${id}`, "status-error");
             return;
         }
 
-        // 验证通过
-        updateStatus(`✅ 验证通过：${labData.name}`, "status-success");
+        // 1. 界面更新
+        updateStatus(`✅ ${labData.name} 验证通过`, "status-success");
         scanBtn.style.display = "none";
         jumpMsg.style.display = "block";
 
-        // ============================================
-        // 核心修复：暴力清洗 URL 并使用 replace 跳转
-        // ============================================
-        try {
-            // 1. 强制去除所有空格、换行符、不可见字符
-            // 这一步能解决 doctype=undefined 的问题
-            let cleanUrl = TARGET_URL.replace(/\s+/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+        // 2. 准备链接 (去除所有空格，防止污染)
+        const cleanUrl = TARGET_URL.replace(/\s+/g, '');
 
-            console.log("正在跳转到 (清洗后):", cleanUrl);
+        // 3. 激活手动按钮 (作为双保险)
+        manualLink.href = cleanUrl;
+        manualBtn.style.display = "block";
+        manualBtn.innerText = `👉 打开: ${labData.name} 表格`;
 
-            setTimeout(() => {
-                // 2. 使用 replace 而不是 href，不仅更稳，还没历史记录负担
-                window.location.replace(cleanUrl);
-            }, 1000);
-
-        } catch (e) {
-            updateStatus("链接跳转失败", "status-error");
-            console.error(e);
-        }
+        // 4. 尝试【模拟点击】跳转 (比 window.location 更稳定)
+        console.log("尝试模拟点击跳转:", cleanUrl);
+        
+        setTimeout(() => {
+            // 创建一个临时的 a 标签来点击
+            const link = document.createElement('a');
+            link.href = cleanUrl;
+            link.target = "_self"; // 在当前页打开，防止拦截
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }, 800);
     }
 
     scanBtn.addEventListener("click", async () => {
@@ -104,17 +116,17 @@
                 const decoder = new TextDecoder();
                 for (const record of event.message.records) {
                     const text = decoder.decode(record.data);
+                    // 简单的解析逻辑
                     if (text.includes("lab_id=")) {
-                        verifyAndJump(text.split("lab_id=")[1].split("&")[0]);
-                        return;
+                        handleCheck(text.split("lab_id=")[1].split("&")[0]);
                     } else if (record.recordType === "text" && !text.includes("http")) {
-                         verifyAndJump(text);
-                         return;
+                        handleCheck(text);
                     }
                 }
             };
         } catch (error) {
-            updateStatus("扫描启动失败", "status-error");
+            console.error(error);
+            updateStatus("扫描启动失败: " + error, "status-error");
         }
     });
 
