@@ -2,25 +2,82 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>实验室安全检查</title>
     <style>
-        /* --- 保持您原来的样式不动，仅微调 --- */
-        body { font-family: -apple-system, Helvetica, sans-serif; text-align: center; padding: 20px; background-color: #f2f4f7; }
-        .container { background: white; padding: 30px 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 0 auto; }
+        body { 
+            font-family: -apple-system, Helvetica, sans-serif; 
+            text-align: center; 
+            padding: 20px; 
+            background-color: #f2f4f7; 
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        .container { 
+            background: white; 
+            padding: 30px 20px; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08); 
+            max-width: 400px; 
+            margin: 0 auto; 
+        }
         
-        .status-box { padding: 15px; border-radius: 10px; background-color: #e9ecef; margin-top: 20px; font-weight: bold; color: #555; word-break: break-all; }
+        /* 状态提示框 */
+        .status-box { 
+            padding: 15px; 
+            border-radius: 10px; 
+            background-color: #e9ecef; 
+            margin-top: 20px; 
+            font-weight: bold; 
+            color: #555; 
+            word-break: break-all; 
+            font-size: 15px;
+        }
         .status-success { background-color: #e6f4ea; color: #137333; border: 1px solid #ceead6; }
         .status-error { background-color: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; }
         
-        .btn { border: none; padding: 16px; border-radius: 12px; width: 100%; margin-top: 25px; font-size: 17px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+        /* 按钮样式 */
+        .btn { 
+            border: none; 
+            padding: 16px; 
+            border-radius: 12px; 
+            width: 100%; 
+            margin-top: 20px; 
+            font-size: 17px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            display: block;
+        }
         .btn:active { opacity: 0.8; }
         
         .btn-scan { background-color: #1a73e8; color: white; }
-        .btn-go { background-color: #059669; color: white; display: none; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); }
         
-        /* 新增：底部退出按钮样式（灰色、低调） */
-        .btn-exit { background-color: transparent; color: #888; border: 1px solid #ddd; margin-top: 15px; font-size: 15px; }
+        /* 验证通过按钮 */
+        .btn-go { 
+            background-color: #059669; 
+            color: white; 
+            display: none; /* 默认隐藏 */
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); 
+        }
+
+        /* 退出按钮 */
+        .btn-exit { 
+            background-color: transparent; 
+            color: #999; 
+            border: 1px solid #e0e0e0; 
+            font-weight: normal; 
+            font-size: 14px; 
+            margin-top: 30px;
+        }
+
+        /* 用于调试显示的链接（默认隐藏，出错时可排查） */
+        #debug-url {
+            font-size: 10px;
+            color: #ccc;
+            margin-top: 10px;
+            word-break: break-all;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -32,14 +89,32 @@
 
     <button id="scanBtn" class="btn btn-scan">📡 点击开始 NFC 扫描</button>
 
-    <button id="goBtn" class="btn btn-go" onclick="jumpToForm()">✅ 验证通过<br><span style="font-size:0.9em; font-weight:normal">点击填写检查表</span></button>
+    <button id="goBtn" class="btn btn-go" onclick="jumpToForm()">
+        ✅ 验证通过<br>
+        <span style="font-size:0.9em; font-weight:normal">点击进入填写表单</span>
+    </button>
     
+    <div id="debug-url"></div>
+
     <button onclick="closeWindow()" class="btn btn-exit">退出系统</button>
 </div>
 
 <script>
     // ==========================================
-    // 1. 实验室数据库 (保持原样)
+    // 1. 链接配置 (防错拆分版)
+    // ==========================================
+    // 将链接拆开写，避免复制时产生隐形空格
+    const URL_BASE = "https://doc.weixin.qq.com/smartsheet/form/";
+    
+    // 请确保下面这个 ID 没有任何空格。如果不确定，请只修改引号里的内容。
+    // 您的原始链接 ID: 1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3
+    const FORM_ID = "1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3";
+
+    // 自动组合并清理（强力去空格）
+    const FINAL_URL = (URL_BASE + FORM_ID).replace(/\s+/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+
+    // ==========================================
+    // 2. 实验室数据库
     // ==========================================
     const LAB_DATABASE = [
         { id: "lab_1", name: "基础楼1001", officer: "王昇" },
@@ -50,77 +125,77 @@
     ];
 
     // ==========================================
-    // 2. 目标链接配置
-    // ==========================================
-    const RAW_URL = "https://doc.weixin.qq.com/smartsheet/form/1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3";
-
-    // ==========================================
     // 3. 核心逻辑
     // ==========================================
     const statusDiv = document.getElementById('status');
     const scanBtn = document.getElementById('scanBtn');
     const goBtn = document.getElementById('goBtn');
-    
-    // 全局变量存储处理后的链接
-    let targetUrl = "";
+    const debugDiv = document.getElementById('debug-url');
 
     window.onload = function() {
+        // 1. 检查URL参数 (模拟调试用)
         const urlParams = new URLSearchParams(window.location.search);
         const urlLabId = urlParams.get('lab_id');
         if (urlLabId) verifyAndShowButton(urlLabId);
         
+        // 2. 检查环境
         if (!("NDEFReader" in window)) {
             console.log("NFC not supported");
         }
     };
 
+    // 验证逻辑
     function verifyAndShowButton(id) {
+        // 清理 ID 中的潜在空格
+        id = id.trim();
         const labData = LAB_DATABASE.find(item => item.id === id);
 
         if (!labData) {
-            updateStatus(`❌ 无效的实验室 ID: ${id}`, "status-error");
+            updateStatus(`❌ 无效标签 ID: ${id}`, "status-error");
             return;
         }
 
-        // 1. 更新提示
-        updateStatus(`✅ 已识别：${labData.name}<br><span style="font-weight:normal; font-size:0.9em; color:#137333">安全员：${labData.officer}</span>`, "status-success");
+        // 验证成功
+        updateStatus(
+            `✅ 已识别：${labData.name}<br>` + 
+            `<span style="font-weight:normal; font-size:0.9em; color:#137333">安全员：${labData.officer}</span>`, 
+            "status-success"
+        );
         
-        // 2. 切换按钮
+        // 界面切换
         scanBtn.style.display = "none";
         goBtn.style.display = "block";
-
-        // 3. 准备链接
-        targetUrl = RAW_URL.replace(/\s+/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
-    }
-
-    // ==========================================
-    // 新增优化功能：跳转与退出
-    // ==========================================
-
-    // 功能1：跳转到表格
-    function jumpToForm() {
-        if (!targetUrl) return;
         
-        // 使用 replace 而不是 href，这样在表格页面按“返回”时，
-        // 不会再回到这个扫描页，而是直接退出，达到“填写完即退出”的效果
-        window.location.replace(targetUrl);
+        // 在屏幕上显示生成的链接，方便排查 (如不需显示可删除下面这行)
+        // debugDiv.style.display = "block";
+        // debugDiv.innerText = "目标链接: " + FINAL_URL;
     }
 
-    // 功能2：关闭当前窗口 (适配企业微信/微信)
+    // 跳转逻辑 (替换历史记录，实现"伪退出")
+    function jumpToForm() {
+        if (!FINAL_URL) {
+            alert("链接生成失败，请检查代码配置");
+            return;
+        }
+        // 使用 replace，这样用户在表单页点返回时，不会回到这里，而是直接退出
+        window.location.replace(FINAL_URL);
+    }
+
+    // 退出逻辑
     function closeWindow() {
-        // 尝试调用微信原生关闭能力
+        // 微信/企微专用关闭命令
         if (typeof WeixinJSBridge !== "undefined") {
             WeixinJSBridge.call('closeWindow');
         } else {
-            // 普通浏览器兜底
+            // 普通浏览器关闭
+            window.opener = null;
+            window.open('', '_self');
             window.close();
-            updateStatus("请手动关闭此窗口");
+            updateStatus("已尝试关闭，如未生效请手动关闭", "");
         }
     }
 
-    // ==========================================
-    // NFC 扫描逻辑 (保持您原代码逻辑)
-    // ==========================================
+    // NFC 扫描逻辑
     scanBtn.addEventListener("click", async () => {
         try {
             const ndef = new NDEFReader();
@@ -132,16 +207,20 @@
                 for (const record of event.message.records) {
                     const text = decoder.decode(record.data);
                     
+                    // 解析 ID
+                    let scannedId = "";
                     if (text.includes("lab_id=")) {
-                        verifyAndShowButton(text.split("lab_id=")[1].split("&")[0]);
+                        scannedId = text.split("lab_id=")[1].split("&")[0];
                     } else if (record.recordType === "text" && !text.includes("http")) {
-                        verifyAndShowButton(text);
+                        scannedId = text;
                     }
+
+                    if (scannedId) verifyAndShowButton(scannedId);
                 }
             };
         } catch (error) {
             console.error(error);
-            updateStatus("❌ 扫描启动失败 (请确认开启NFC或使用HTTPS)", "status-error");
+            updateStatus("❌ NFC 启动失败<br><small>请确保使用 HTTPS 或已开启 NFC</small>", "status-error");
         }
     });
 
