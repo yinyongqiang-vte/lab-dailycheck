@@ -36,19 +36,14 @@
     ];
 
     // ==========================================
-    // 2. 表单配置 (已移除复杂的 Keys 配置)
-    // ==========================================
-    const FORM_CONFIG = {
-        // 请确保这里是您的收集表链接
-        url: "https://doc.weixin.qq.com/smartsheet/form/1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3"
-    };
-
-    // ==========================================
-    // 3. 核心逻辑
+    // 2. 核心逻辑 (已修复跳转问题)
     // ==========================================
     const statusDiv = document.getElementById('status');
     const jumpMsg = document.getElementById('jumpMsg');
     const scanBtn = document.getElementById('scanBtn');
+
+    // ⚠️ 您的目标链接 (尽量不要手动修改这里，防止误删字符)
+    const TARGET_URL = "https://doc.weixin.qq.com/smartsheet/form/1_wpkV4SDgAAcl3du5JJI0jcTfUAhk18fQ_a151f3";
 
     window.onload = function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -80,21 +75,23 @@
         jumpMsg.style.display = "block";
 
         // ============================================
-        // 修改点：直接使用清洗后的基础链接，不拼接参数
+        // 核心修复：暴力清洗 URL 并使用 replace 跳转
         // ============================================
         try {
-            // 1. 清理链接中的隐形字符和空格 (解决文件不存在问题)
-            let cleanBaseUrl = FORM_CONFIG.url.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim();
+            // 1. 强制去除所有空格、换行符、不可见字符
+            // 这一步能解决 doctype=undefined 的问题
+            let cleanUrl = TARGET_URL.replace(/\s+/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
 
-            console.log("即将跳转至纯表单:", cleanBaseUrl);
+            console.log("正在跳转到 (清洗后):", cleanUrl);
 
-            // 2. 延迟跳转
             setTimeout(() => {
-                window.location.href = cleanBaseUrl;
+                // 2. 使用 replace 而不是 href，不仅更稳，还没历史记录负担
+                window.location.replace(cleanUrl);
             }, 1000);
 
         } catch (e) {
-            updateStatus("链接配置有误", "status-error");
+            updateStatus("链接跳转失败", "status-error");
+            console.error(e);
         }
     }
 
